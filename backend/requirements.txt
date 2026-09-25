@@ -13,3 +13,4 @@ scikit-learn
 joblib
 httpx
 llama-cpp-python
+python-dotenv

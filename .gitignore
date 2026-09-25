@@ -1,4 +1,4 @@
-﻿# Python
+# Python
 __pycache__/
 *.pyc
 venv/
@@ -7,7 +7,7 @@ venv/
 # Models (large files, don't commit)
 *.gguf
 *.bin
-models/
+backend/models/
 
 # FAISS indexes
 *.index

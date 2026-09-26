@@ -14,3 +14,4 @@ joblib
 httpx
 llama-cpp-python
 python-dotenv
+email-validator

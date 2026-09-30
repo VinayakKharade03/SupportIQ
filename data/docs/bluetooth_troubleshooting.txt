@@ -1,0 +1,16 @@
+﻿Bluetooth Connection Troubleshooting
+
+If your earbuds or headphones won't connect via Bluetooth, try these steps in order:
+
+1. Ensure the earbuds are charged. Low battery can prevent pairing.
+2. Turn off Bluetooth on your phone, wait 10 seconds, then turn it back on.
+3. Forget the device in your phone's Bluetooth settings, then re-pair from scratch.
+4. Reset the earbuds: place both earbuds in the case, open the lid, and press
+   and hold the button inside the case for 10 seconds until the LED flashes
+   red and white alternately. This indicates a factory reset.
+5. Make sure you are within 1 meter of the device during initial pairing.
+6. Check that no other device is currently connected to the earbuds - most
+   models only support one active connection at a time.
+
+If none of these steps work, the earbuds may have a hardware fault. In that
+case, direct the customer to raise a replacement or repair request.

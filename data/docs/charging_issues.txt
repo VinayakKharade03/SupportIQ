@@ -1,0 +1,17 @@
+﻿Charging Case Issues
+
+If the charging case is not charging the earbuds:
+
+1. Check the case's own battery level (usually shown by an LED indicator).
+   If the case itself is dead, charge it fully via USB-C for at least 1 hour.
+2. Clean the charging pins inside the case with a dry cloth - dust or lint
+   buildup is a very common cause of charging failure.
+3. Make sure the earbuds are seated properly in the case; you should feel
+   a slight magnetic click and see the LED light up.
+4. Try a different charging cable and power source, since a faulty cable is
+   a common culprit.
+5. If only one earbud charges, the issue is likely with that specific
+   earbud's contact pins rather than the case.
+
+If the case LED does not light up at all even when plugged in, the case
+itself may be faulty and should be flagged for replacement.

@@ -1,0 +1,82 @@
+﻿import pandas as pd
+
+data = [
+    # --- negative / connectivity ---
+    ("my earbuds wont connect to bluetooth at all", "negative", "connectivity"),
+    ("sound keeps cutting out randomly during calls", "negative", "connectivity"),
+    ("bluetooth pairing fails every single time", "negative", "connectivity"),
+    ("earbuds disconnect randomly while im listening to music", "negative", "connectivity"),
+    ("cant get my earbuds to pair with my new phone", "negative", "connectivity"),
+    ("audio keeps lagging behind the video", "negative", "connectivity"),
+
+    # --- negative / hardware_defect ---
+    ("the left earbud stopped working after a week", "negative", "hardware_defect"),
+    ("one earbud is louder than the other", "negative", "hardware_defect"),
+    ("right earbud makes a crackling noise", "negative", "hardware_defect"),
+    ("touch controls on my earbuds stopped responding", "negative", "hardware_defect"),
+    ("microphone doesnt work during calls", "negative", "hardware_defect"),
+
+    # --- negative / charging ---
+    ("charging case isnt charging my earbuds anymore", "negative", "charging"),
+    ("case led doesnt light up when i plug it in", "negative", "charging"),
+    ("earbuds wont charge no matter what cable i use", "negative", "charging"),
+    ("case battery drains even when not in use", "negative", "charging"),
+    ("only one earbud charges in the case", "negative", "charging"),
+
+    # --- negative / battery ---
+    ("battery drains within an hour of use", "negative", "battery"),
+    ("earbuds die way faster than advertised", "negative", "battery"),
+    ("battery life has gotten much worse over time", "negative", "battery"),
+
+    # --- negative / recurring_issue ---
+    ("this is the third time im facing the same issue so frustrating", "negative", "recurring_issue"),
+    ("i have been waiting 2 weeks for a replacement unacceptable", "negative", "recurring_issue"),
+    ("i already contacted support twice about this same problem", "negative", "recurring_issue"),
+    ("nobody has responded to my complaint in days", "negative", "recurring_issue"),
+
+    # --- negative / refund_request ---
+    ("i want a refund this product is garbage", "negative", "refund_request"),
+    ("i want my money back this is defective", "negative", "refund_request"),
+    ("please cancel my order and refund me", "negative", "refund_request"),
+    ("this product is faulty i need a refund immediately", "negative", "refund_request"),
+    ("id like to return this and get my money back", "negative", "refund_request"),
+
+    # --- neutral / connectivity ---
+    ("how do i pair my earbuds with a new phone", "neutral", "connectivity"),
+    ("how many devices can these earbuds connect to at once", "neutral", "connectivity"),
+
+    # --- neutral / warranty_query ---
+    ("what is the warranty period for this product", "neutral", "warranty_query"),
+    ("does the warranty cover water damage", "neutral", "warranty_query"),
+    ("how do i claim warranty for my earbuds", "neutral", "warranty_query"),
+    ("is the warranty still valid without the original box", "neutral", "warranty_query"),
+
+    # --- neutral / general_query ---
+    ("can you tell me the battery backup time", "neutral", "general_query"),
+    ("how do i reset my earbuds to factory settings", "neutral", "general_query"),
+    ("is this product water resistant", "neutral", "general_query"),
+    ("what colors does this come in", "neutral", "general_query"),
+    ("what is the driver size of these earbuds", "neutral", "general_query"),
+    ("does this support fast charging", "neutral", "general_query"),
+    ("how do i update the firmware", "neutral", "general_query"),
+
+    # --- positive / resolved ---
+    ("thanks for the quick help that fixed it", "positive", "resolved"),
+    ("your support team helped me resolve this quickly appreciate it", "positive", "resolved"),
+    ("works perfectly now after the reset thank you", "positive", "resolved"),
+    ("issue is fixed now thanks for your patience", "positive", "resolved"),
+    ("that solved my problem thank you so much", "positive", "resolved"),
+    ("appreciate the fast response, all good now", "positive", "resolved"),
+
+    # --- positive / general_query ---
+    ("great product love the sound quality", "positive", "general_query"),
+    ("these earbuds are amazing for the price", "positive", "general_query"),
+    ("really happy with this purchase", "positive", "general_query"),
+    ("battery life is way better than i expected", "positive", "general_query"),
+]
+
+df = pd.DataFrame(data, columns=["text", "sentiment", "category"])
+df.to_csv("../data/docs/training_data.csv", index=False)
+print(f"Saved {len(df)} labeled examples")
+print(df["sentiment"].value_counts())
+print(df["category"].value_counts())

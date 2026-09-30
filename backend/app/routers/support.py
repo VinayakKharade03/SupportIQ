@@ -4,14 +4,18 @@ import tempfile
 import uuid
 import json
 
-from fastapi import APIRouter, UploadFile, File
+from fastapi import APIRouter, Depends, UploadFile, File
 from fastapi.responses import StreamingResponse
+from sqlalchemy.orm import Session
 
+from app.database import get_db
+from app.models.user import User
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.ml.model_loader import get_llm, get_whisper
 from app.ml.rag import retrieve
 from app.ml.intent_router import classify_intent
 from app.ml.classifiers import classify
+from app.services.order_agent import handle_order, get_optional_user
 
 router = APIRouter()
 
@@ -69,22 +73,17 @@ def handle_support(user_message: str) -> str:
     return reply
 
 
-def handle_order(user_message: str) -> str:
-    print("[INTENT] order path hit (placeholder)")
-    return (
-        "I can help you order that. Product catalog and ordering aren't fully "
-        "wired up yet — this is a placeholder response confirming the order "
-        "path was correctly routed."
-    )
-
-
 @router.post("/chat", response_model=ChatResponse)
-def chat(request: ChatRequest):
+def chat(
+    request: ChatRequest,
+    user: User | None = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+):
     intent = classify_intent(request.message)
     print(f"[INTENT] '{request.message}' -> {intent}")
 
     if intent == "order":
-        reply_text = handle_order(request.message)
+        reply_text = handle_order(request.message, user, db)
     else:
         reply_text = handle_support(request.message)
 
@@ -92,14 +91,19 @@ def chat(request: ChatRequest):
 
 
 @router.post("/chat/stream")
-def chat_stream(request: ChatRequest):
+def chat_stream(
+    request: ChatRequest,
+    user: User | None = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+):
     intent = classify_intent(request.message)
     print(f"[INTENT] '{request.message}' -> {intent}")
 
     if intent == "order":
+        order_reply = handle_order(request.message, user, db)
+
         def order_generator():
-            reply = handle_order(request.message)
-            yield f"data: {json.dumps({'token': reply})}\n\n"
+            yield f"data: {json.dumps({'token': order_reply})}\n\n"
             yield f"data: {json.dumps({'done': True})}\n\n"
         return StreamingResponse(order_generator(), media_type="text/event-stream")
 
@@ -145,7 +149,11 @@ def chat_stream(request: ChatRequest):
 
 
 @router.post("/voice-chat", response_model=ChatResponse)
-async def voice_chat(file: UploadFile = File(...)):
+async def voice_chat(
+    file: UploadFile = File(...),
+    user: User | None = Depends(get_optional_user),
+    db: Session = Depends(get_db),
+):
     whisper = get_whisper()
 
     temp_path = os.path.join(tempfile.gettempdir(), f"{uuid.uuid4()}.wav")
@@ -166,7 +174,7 @@ async def voice_chat(file: UploadFile = File(...)):
     print(f"[INTENT] '{transcribed_text}' -> {intent}")
 
     if intent == "order":
-        reply_text = handle_order(transcribed_text)
+        reply_text = handle_order(transcribed_text, user, db)
     else:
         reply_text = handle_support(transcribed_text)
 

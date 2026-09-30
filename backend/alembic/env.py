@@ -1,4 +1,4 @@
-﻿import os
+import os
 import sys
 from logging.config import fileConfig
 
@@ -14,6 +14,8 @@ load_dotenv()
 
 from app.database import Base
 from app.models.user import User  # noqa: F401
+from app.models.product import Product  # noqa: F401
+from app.models.order import Order, OrderItem  # noqa: F401
 
 config = context.config
 config.set_main_option("sqlalchemy.url", os.getenv("DATABASE_URL"))

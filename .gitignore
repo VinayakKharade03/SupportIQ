@@ -9,8 +9,9 @@ venv/
 *.bin
 backend/models/
 
-# FAISS indexes
+# FAISS indexes and trained models
 *.index
+*.pkl
 
 # OS
 .DS_Store

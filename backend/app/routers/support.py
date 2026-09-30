@@ -10,6 +10,7 @@ from fastapi.responses import StreamingResponse
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.ml.model_loader import get_llm, get_whisper
 from app.ml.rag import retrieve
+from app.ml.intent_router import classify_intent
 
 router = APIRouter()
 
@@ -29,10 +30,9 @@ def build_prompt_with_context(user_message: str):
     return prompt, retrieval_time
 
 
-@router.post("/chat", response_model=ChatResponse)
-def chat(request: ChatRequest):
+def handle_support(user_message: str) -> str:
     llm = get_llm()
-    prompt_with_context, retrieval_time = build_prompt_with_context(request.message)
+    prompt_with_context, retrieval_time = build_prompt_with_context(user_message)
 
     gen_start = time.time()
     output = llm.create_chat_completion(
@@ -42,14 +42,45 @@ def chat(request: ChatRequest):
         ],
         max_tokens=200,
     )
-    print(f"[TIMING] Retrieval: {retrieval_time:.3f}s | Generation: {time.time() - gen_start:.3f}s")
+    print(f"[TIMING] Support | Retrieval: {retrieval_time:.3f}s | Generation: {time.time() - gen_start:.3f}s")
+    return output["choices"][0]["message"]["content"]
 
-    reply_text = output["choices"][0]["message"]["content"]
+
+def handle_order(user_message: str) -> str:
+    # Placeholder until the product catalog + order logic is built.
+    print("[INTENT] order path hit (placeholder)")
+    return (
+        "I can help you order that. Product catalog and ordering aren't fully "
+        "wired up yet — this is a placeholder response confirming the order "
+        "path was correctly routed."
+    )
+
+
+@router.post("/chat", response_model=ChatResponse)
+def chat(request: ChatRequest):
+    intent = classify_intent(request.message)
+    print(f"[INTENT] '{request.message}' -> {intent}")
+
+    if intent == "order":
+        reply_text = handle_order(request.message)
+    else:
+        reply_text = handle_support(request.message)
+
     return ChatResponse(reply=reply_text)
 
 
 @router.post("/chat/stream")
 def chat_stream(request: ChatRequest):
+    intent = classify_intent(request.message)
+    print(f"[INTENT] '{request.message}' -> {intent}")
+
+    if intent == "order":
+        def order_generator():
+            reply = handle_order(request.message)
+            yield f"data: {json.dumps({'token': reply})}\n\n"
+            yield f"data: {json.dumps({'done': True})}\n\n"
+        return StreamingResponse(order_generator(), media_type="text/event-stream")
+
     llm = get_llm()
     prompt_with_context, retrieval_time = build_prompt_with_context(request.message)
     print(f"[TIMING] Retrieval: {retrieval_time:.3f}s")
@@ -73,8 +104,7 @@ def chat_stream(request: ChatRequest):
                     first_token_time = time.time() - gen_start
                     print(f"[TIMING] First token: {first_token_time:.3f}s")
                 yield f"data: {json.dumps({'token': token})}\n\n"
-        total_gen = time.time() - gen_start
-        print(f"[TIMING] Full generation: {total_gen:.3f}s")
+        print(f"[TIMING] Full generation: {time.time() - gen_start:.3f}s")
         yield f"data: {json.dumps({'done': True})}\n\n"
 
     return StreamingResponse(token_generator(), media_type="text/event-stream")
@@ -83,7 +113,6 @@ def chat_stream(request: ChatRequest):
 @router.post("/voice-chat", response_model=ChatResponse)
 async def voice_chat(file: UploadFile = File(...)):
     whisper = get_whisper()
-    llm = get_llm()
 
     temp_path = os.path.join(tempfile.gettempdir(), f"{uuid.uuid4()}.wav")
     try:
@@ -99,18 +128,12 @@ async def voice_chat(file: UploadFile = File(...)):
         if os.path.exists(temp_path):
             os.remove(temp_path)
 
-    prompt_with_context, retrieval_time = build_prompt_with_context(transcribed_text)
-    print(f"[TIMING] Retrieval: {retrieval_time:.3f}s")
+    intent = classify_intent(transcribed_text)
+    print(f"[INTENT] '{transcribed_text}' -> {intent}")
 
-    gen_start = time.time()
-    output = llm.create_chat_completion(
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt_with_context},
-        ],
-        max_tokens=200,
-    )
-    print(f"[TIMING] Generation: {time.time() - gen_start:.3f}s")
+    if intent == "order":
+        reply_text = handle_order(transcribed_text)
+    else:
+        reply_text = handle_support(transcribed_text)
 
-    reply_text = output["choices"][0]["message"]["content"]
     return ChatResponse(reply=reply_text)

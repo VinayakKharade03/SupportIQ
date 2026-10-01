@@ -18,3 +18,5 @@ email-validator
 bcrypt==4.0.1
 pandas
 pywhispercpp
+kokoro
+soundfile

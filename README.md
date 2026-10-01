@@ -14,3 +14,11 @@ AI-powered customer service agent — final year project.
    - `python train_classifiers.py`
    - `python scripts_build_index.py`
 7. Run the API: `uvicorn app.main:app`
+
+## Voice replies
+
+`POST /voice/reply` takes an audio file and streams back spoken answers (server-sent events: transcript, then one base64 WAV per sentence). Speech uses Kokoro (`af_heart`) on the CPU.
+
+- The first run downloads about 330MB of Kokoro weights and a small spaCy model, so it needs internet once.
+- On startup the server loads all models in the background. Wait for `[WARMUP] TTS cache ready` in the log (about 20 seconds) before sending requests.
+- Try it with `python test_voice_reply_api.py "how long is the warranty"` while uvicorn is running.

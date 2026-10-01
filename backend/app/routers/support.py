@@ -16,6 +16,7 @@ from app.ml.rag import retrieve
 from app.ml.intent_router import classify_intent
 from app.ml.classifiers import classify
 from app.services.order_agent import handle_order, get_optional_user
+from app.services.tickets import create_ticket, should_escalate
 
 router = APIRouter()
 
@@ -44,10 +45,19 @@ def build_prompt_with_context(user_message: str):
     return prompt, retrieval_time, best_distance
 
 
-def handle_support(user_message: str) -> str:
+def handle_support(
+    user_message: str,
+    user: User | None = None,
+    db: Session | None = None,
+    source: str = "chat",
+) -> str:
     sentiment, category = classify(user_message)
-    escalate = sentiment == "negative" and category in ("recurring_issue", "refund_request")
+    escalate = should_escalate(sentiment, category)
     print(f"[CLASSIFY] sentiment={sentiment} category={category} escalate={escalate}")
+
+    if escalate and db is not None:
+        ticket = create_ticket(db, user, user_message, sentiment, category, source)
+        print(f"[TICKET] opened #{ticket.id}")
 
     prompt_with_context, retrieval_time, best_distance = build_prompt_with_context(user_message)
 
@@ -85,7 +95,7 @@ def chat(
     if intent == "order":
         reply_text = handle_order(request.message, user, db)
     else:
-        reply_text = handle_support(request.message)
+        reply_text = handle_support(request.message, user, db, "chat")
 
     return ChatResponse(reply=reply_text)
 
@@ -108,7 +118,15 @@ def chat_stream(
         return StreamingResponse(order_generator(), media_type="text/event-stream")
 
     sentiment, category = classify(request.message)
-    print(f"[CLASSIFY] sentiment={sentiment} category={category}")
+    escalate = should_escalate(sentiment, category)
+    print(f"[CLASSIFY] sentiment={sentiment} category={category} escalate={escalate}")
+
+    # The ticket is created now, before streaming starts, while the DB session is still open.
+    escalate_event = ""
+    if escalate:
+        ticket_id = create_ticket(db, user, request.message, sentiment, category, "chat").id
+        print(f"[TICKET] opened #{ticket_id}")
+        escalate_event = f"data: {json.dumps({'escalate': True, 'ticket_id': ticket_id})}\n\n"
 
     prompt_with_context, retrieval_time, best_distance = build_prompt_with_context(request.message)
     print(f"[TIMING] Retrieval: {retrieval_time:.3f}s")
@@ -118,6 +136,8 @@ def chat_stream(
 
         def no_answer_generator():
             yield f"data: {json.dumps({'token': NO_ANSWER_REPLY})}\n\n"
+            if escalate_event:
+                yield escalate_event
             yield f"data: {json.dumps({'done': True})}\n\n"
         return StreamingResponse(no_answer_generator(), media_type="text/event-stream")
 
@@ -143,6 +163,8 @@ def chat_stream(
                     print(f"[TIMING] First token: {first_token_time:.3f}s")
                 yield f"data: {json.dumps({'token': token})}\n\n"
         print(f"[TIMING] Full generation: {time.time() - gen_start:.3f}s")
+        if escalate_event:
+            yield escalate_event
         yield f"data: {json.dumps({'done': True})}\n\n"
 
     return StreamingResponse(token_generator(), media_type="text/event-stream")
@@ -176,6 +198,6 @@ async def voice_chat(
     if intent == "order":
         reply_text = handle_order(transcribed_text, user, db)
     else:
-        reply_text = handle_support(transcribed_text)
+        reply_text = handle_support(transcribed_text, user, db, "voice")
 
     return ChatResponse(reply=reply_text)

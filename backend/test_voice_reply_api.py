@@ -70,6 +70,8 @@ with httpx.stream(
         data = json.loads(line[6:])
         if "transcript" in data:
             print(f"[{now():5.2f}s] heard: {data['transcript']!r}")
+        elif data.get("escalate"):
+            print(f"[{now():5.2f}s] ESCALATED: ticket #{data['ticket_id']}")
         elif data.get("done"):
             break
         else:

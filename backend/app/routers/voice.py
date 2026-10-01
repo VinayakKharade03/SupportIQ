@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.user import User
+from app.ml.classifiers import classify
 from app.ml.intent_router import classify_intent
 from app.ml.model_loader import get_llm, get_whisper
 from app.ml.product_search import build_product_index
@@ -19,6 +20,7 @@ from app.ml.rag import retrieve
 from app.routers.support import MAX_DISTANCE, NO_ANSWER_REPLY, build_prompt_with_context
 from app.services import tts
 from app.services.order_agent import LOGIN_REPLY, get_optional_user, handle_order
+from app.services.tickets import create_ticket, should_escalate
 
 router = APIRouter()
 
@@ -37,6 +39,7 @@ VOICE_REMINDER = (
 VOICE_MAX_TOKENS = 120
 MAX_SPOKEN_SENTENCES = 2
 NOT_HEARD_REPLY = "Sorry, I didn't catch that. Could you say it again?"
+ESCALATION_NOTE = "I've flagged this for priority review by our support team."
 
 _SENTENCE_END = re.compile(r"(?<!\d)[.!?](?=\s|$)")  # list numbers like "1." don't count
 
@@ -102,6 +105,12 @@ def _llm_tokens(prompt: str):
         stream.close()
 
 
+def _with_note(tokens, note: str):
+    """Speaks a closing line after the reply. The newline forces a sentence break."""
+    yield from tokens
+    yield "\n" + note
+
+
 @router.post("/reply")
 def voice_reply(
     file: UploadFile = File(...),
@@ -113,17 +122,27 @@ def voice_reply(
     print(f"[VOICE] heard '{text}' -> {intent}")
 
     # Anything that needs the database session is computed here, before streaming starts.
+    ticket_id = None
     if not text:
         tokens = [NOT_HEARD_REPLY]
     elif intent == "order":
         tokens = [handle_order(text, user, db)]
     else:
+        sentiment, category = classify(text)
+        escalate = should_escalate(sentiment, category)
+        print(f"[CLASSIFY] sentiment={sentiment} category={category} escalate={escalate}")
+        if escalate:
+            ticket_id = create_ticket(db, user, text, sentiment, category, "voice").id
+            print(f"[TICKET] opened #{ticket_id}")
+
         prompt, _, best_distance = build_prompt_with_context(text)
         if best_distance > MAX_DISTANCE:
             print(f"[RAG] best distance {best_distance:.3f} > {MAX_DISTANCE}, skipping LLM")
             tokens = [NO_ANSWER_REPLY]
         else:
             tokens = _llm_tokens(prompt)
+        if ticket_id:
+            tokens = _with_note(tokens, ESCALATION_NOTE)
 
     def events():
         yield _event({"transcript": text})
@@ -135,6 +154,8 @@ def voice_reply(
                 first = False
             yield _event({"text": sentence, "audio": base64.b64encode(wav).decode()})
         print(f"[TIMING] Voice reply finished: {time.time() - start:.3f}s")
+        if ticket_id:
+            yield _event({"escalate": True, "ticket_id": ticket_id})
         yield _event({"done": True})
 
     return StreamingResponse(events(), media_type="text/event-stream")

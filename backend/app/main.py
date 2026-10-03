@@ -2,7 +2,8 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from app.routers import auth, support, orders, voice
+from fastapi.middleware.cors import CORSMiddleware
+from app.routers import auth, support, orders, voice, products
 
 
 @asynccontextmanager
@@ -13,10 +14,24 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="SupportIQ", lifespan=lifespan)
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(support.router, prefix="/support", tags=["support"])
 app.include_router(orders.router, prefix="/orders", tags=["orders"])
 app.include_router(voice.router, prefix="/voice", tags=["voice"])
+app.include_router(products.router, prefix="/products", tags=["products"])
 
 
 @app.get("/health")

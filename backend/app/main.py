@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import auth, support, orders, voice, products
+from app.routers import auth, support, orders, voice, products, admin_tickets
 
 
 @asynccontextmanager
@@ -32,6 +32,7 @@ app.include_router(support.router, prefix="/support", tags=["support"])
 app.include_router(orders.router, prefix="/orders", tags=["orders"])
 app.include_router(voice.router, prefix="/voice", tags=["voice"])
 app.include_router(products.router, prefix="/products", tags=["products"])
+app.include_router(admin_tickets.router, prefix="/admin/tickets", tags=["admin"])
 
 
 @app.get("/health")

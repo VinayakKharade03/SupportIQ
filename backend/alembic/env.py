@@ -1,4 +1,4 @@
-import os
+﻿import os
 import sys
 from logging.config import fileConfig
 
@@ -17,6 +17,7 @@ from app.models.user import User  # noqa: F401
 from app.models.product import Product  # noqa: F401
 from app.models.order import Order, OrderItem  # noqa: F401
 from app.models.ticket import Ticket  # noqa: F401
+from app.models.refresh_token import RefreshToken  # noqa: F401
 
 config = context.config
 config.set_main_option("sqlalchemy.url", os.getenv("DATABASE_URL"))
@@ -55,3 +56,4 @@ if context.is_offline_mode():
     run_migrations_offline()
 else:
     run_migrations_online()
+

@@ -1,4 +1,4 @@
-﻿from pydantic import BaseModel, EmailStr
+﻿from pydantic import BaseModel, EmailStr, Field
 from datetime import datetime
 
 
@@ -26,3 +26,12 @@ class UserOut(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
+
+
+class TokenPair(Token):
+    refresh_token: str
+    expires_in: int  # access token lifetime in seconds
+
+
+class RefreshRequest(BaseModel):
+    refresh_token: str = Field(min_length=1, max_length=512)

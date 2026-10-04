@@ -5,7 +5,7 @@ from jose import jwt
 
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "dev-secret-change-this-in-production")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
+ACCESS_TOKEN_EXPIRE_MINUTES = 30  # short-lived; refresh tokens keep the user signed in
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 

@@ -17,7 +17,7 @@ def list_products(
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
 ):
-    query = db.query(Product)
+    query = db.query(Product).filter(Product.is_active.is_(True))
     if category:
         query = query.filter(Product.category == category)
     return query.order_by(Product.id).offset(offset).limit(limit).all()
@@ -26,6 +26,6 @@ def list_products(
 @router.get("/{product_id}", response_model=ProductOut)
 def get_product(product_id: int, db: Session = Depends(get_db)):
     product = db.get(Product, product_id)
-    if not product:
+    if not product or not product.is_active:
         raise HTTPException(status_code=404, detail="Product not found")
     return product

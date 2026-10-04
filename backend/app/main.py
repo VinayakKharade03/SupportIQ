@@ -14,6 +14,7 @@ from app.routers import (
     admin_products,
     admin_orders,
     admin_stats,
+    admin_knowledge,
 )
 
 
@@ -48,6 +49,7 @@ app.include_router(admin_users.router, prefix="/admin/users", tags=["admin"])
 app.include_router(admin_products.router, prefix="/admin/products", tags=["admin"])
 app.include_router(admin_orders.router, prefix="/admin/orders", tags=["admin"])
 app.include_router(admin_stats.router, prefix="/admin/stats", tags=["admin"])
+app.include_router(admin_knowledge.router, prefix="/admin/knowledge", tags=["admin"])
 
 
 @app.get("/health")

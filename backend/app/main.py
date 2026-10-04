@@ -7,6 +7,7 @@ from app.routers import (
     auth,
     support,
     orders,
+    my_orders,
     voice,
     products,
     admin_tickets,
@@ -42,6 +43,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(support.router, prefix="/support", tags=["support"])
 app.include_router(orders.router, prefix="/orders", tags=["orders"])
+app.include_router(my_orders.router, prefix="/orders", tags=["orders"])
 app.include_router(voice.router, prefix="/voice", tags=["voice"])
 app.include_router(products.router, prefix="/products", tags=["products"])
 app.include_router(admin_tickets.router, prefix="/admin/tickets", tags=["admin"])

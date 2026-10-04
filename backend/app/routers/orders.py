@@ -85,6 +85,8 @@ def add_to_cart(body: CartAdd, user: User = Depends(get_current_user), db: Sessi
     product = db.get(Product, body.product_id)
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
+    if not product.is_active:
+        raise HTTPException(status_code=400, detail=f"{product.name} is no longer available")
 
     order = get_pending_order(db, user.id, create=True)
     item = next((i for i in order.items if i.product_id == body.product_id), None)
@@ -129,6 +131,19 @@ def confirm_order(user: User = Depends(get_current_user), db: Session = Depends(
     order = get_pending_order(db, user.id)
     if order is None or not order.items:
         raise HTTPException(status_code=400, detail="Cart is empty")
+
+    unavailable = []
+    for item in order.items:
+        product = db.get(Product, item.product_id)
+        if product is None or not product.is_active:
+            unavailable.append(product.name if product else "an item")
+    if unavailable:
+        raise HTTPException(
+            status_code=400,
+            detail="Some items in your cart are no longer available: "
+            + ", ".join(unavailable)
+            + ". Please remove them and try again.",
+        )
 
     for item in order.items:
         product = (

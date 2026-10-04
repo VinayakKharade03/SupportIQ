@@ -5,8 +5,7 @@ from app.database import SessionLocal
 from app.models.product import Product
 
 _model = None
-_index = None
-_products = []
+_state = None  # (faiss index, list of product dicts), swapped in as one unit
 
 
 def _get_model():
@@ -17,12 +16,17 @@ def _get_model():
 
 
 def build_product_index():
-    """Load products from the DB and (re)build the in-memory FAISS index."""
-    global _index, _products
+    """Load active products from the DB and (re)build the in-memory FAISS index."""
+    global _state
     db = SessionLocal()
     try:
-        rows = db.query(Product).order_by(Product.id).all()
-        _products = [
+        rows = (
+            db.query(Product)
+            .filter(Product.is_active.is_(True))
+            .order_by(Product.id)
+            .all()
+        )
+        products = [
             {
                 "id": p.id,
                 "name": p.name,
@@ -36,27 +40,31 @@ def build_product_index():
     finally:
         db.close()
 
-    if not _products:
-        _index = None
+    if not products:
+        _state = None
         return
 
-    texts = [f"{p['name']}. {p['category']}. {p['description']}" for p in _products]
+    texts = [f"{p['name']}. {p['category']}. {p['description']}" for p in products]
     embeddings = _get_model().encode(texts, normalize_embeddings=True).astype("float32")
-    _index = faiss.IndexFlatIP(embeddings.shape[1])
-    _index.add(embeddings)
+    index = faiss.IndexFlatIP(embeddings.shape[1])
+    index.add(embeddings)
+    _state = (index, products)
 
 
 def search_products(query: str, top_k: int = 3):
-    """Return the top_k products most similar to the query, with a similarity score."""
-    if _index is None:
+    """Return the top_k active products most similar to the query, with a similarity score."""
+    state = _state
+    if state is None:
         build_product_index()
-    if _index is None:
+        state = _state
+    if state is None:
         return []
 
+    index, products = state
     q = _get_model().encode([query], normalize_embeddings=True).astype("float32")
-    scores, ids = _index.search(q, min(top_k, len(_products)))
+    scores, ids = index.search(q, min(top_k, len(products)))
     return [
-        {**_products[i], "score": float(s)}
+        {**products[i], "score": float(s)}
         for s, i in zip(scores[0], ids[0])
         if i != -1
     ]

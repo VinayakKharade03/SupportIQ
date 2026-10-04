@@ -12,6 +12,8 @@ from app.routers import (
     admin_tickets,
     admin_users,
     admin_products,
+    admin_orders,
+    admin_stats,
 )
 
 
@@ -44,6 +46,8 @@ app.include_router(products.router, prefix="/products", tags=["products"])
 app.include_router(admin_tickets.router, prefix="/admin/tickets", tags=["admin"])
 app.include_router(admin_users.router, prefix="/admin/users", tags=["admin"])
 app.include_router(admin_products.router, prefix="/admin/products", tags=["admin"])
+app.include_router(admin_orders.router, prefix="/admin/orders", tags=["admin"])
+app.include_router(admin_stats.router, prefix="/admin/stats", tags=["admin"])
 
 
 @app.get("/health")

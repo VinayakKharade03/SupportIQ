@@ -23,6 +23,10 @@ class UserOut(BaseModel):
         from_attributes = True
 
 
+class UserMe(UserOut):
+    is_admin: bool
+
+
 class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"

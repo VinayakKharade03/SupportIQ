@@ -3,7 +3,8 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models.user import User
-from app.schemas.user import RefreshRequest, TokenPair, UserCreate, UserLogin, UserOut
+from app.routers.orders import get_current_user
+from app.schemas.user import RefreshRequest, TokenPair, UserCreate, UserLogin, UserMe, UserOut
 from app.services import refresh_tokens
 from app.services.security import hash_password, verify_password
 
@@ -45,3 +46,8 @@ def refresh(body: RefreshRequest, db: Session = Depends(get_db)):
 def logout(body: RefreshRequest, db: Session = Depends(get_db)):
     refresh_tokens.revoke_session(db, body.refresh_token)
     return {"detail": "Logged out"}
+
+
+@router.get("/me", response_model=UserMe)
+def me(user: User = Depends(get_current_user)):
+    return user

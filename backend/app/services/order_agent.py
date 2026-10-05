@@ -9,6 +9,7 @@ from app.database import get_db
 from app.models.user import User
 from app.ml.product_search import search_products
 from app.routers.orders import CartAdd, add_to_cart, confirm_order, view_cart
+from app.services import order_chat
 from app.services.security import decode_access_token
 
 MIN_SCORE = 0.4  # cosine similarity: higher = closer. Real matches >= 0.55, unrelated <= 0.3
@@ -75,6 +76,11 @@ def handle_order(message: str, user: User | None = None, db: Session | None = No
     text = message.lower()
     needs_login = user is None or db is None
 
+    # 0. Order management: remove from cart, order status, cancel (confirm-before-cancel)
+    managed = order_chat.handle(text, user, db, LOGIN_REPLY)
+    if managed is not None:
+        return managed
+
     # 1. Confirm: the only step that actually places the order
     if "confirm" in text or "place order" in text or "place my order" in text:
         print("[ORDER] action=confirm")
@@ -120,3 +126,4 @@ def handle_order(message: str, user: User | None = None, db: Session | None = No
         f"Added {quantity} x {product['name']} to your cart. Cart total: Rs {cart['total']:.0f}.\n"
         "Say 'confirm order' to place it, or keep shopping."
     )
+

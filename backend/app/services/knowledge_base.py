@@ -1,4 +1,4 @@
-﻿import glob
+import glob
 import logging
 import os
 import pickle
@@ -11,7 +11,9 @@ import faiss
 import numpy as np
 from fastapi import HTTPException
 
+from app.database import SessionLocal
 from app.ml import rag
+from app.models.product import Product, ProductDocument
 
 logger = logging.getLogger(__name__)
 
@@ -83,21 +85,72 @@ def _revert(path, backup):
         logger.exception("Could not revert %s", path)
 
 
+def _chunk_blocks(text, limit=600):
+    """Split a guide, troubleshooting or FAQ text at section and paragraph boundaries,
+    so one chunk usually holds one complete procedure or question."""
+    chunks, current = [], ""
+    for block in (b.strip() for b in text.split("\n\n")):
+        if not block:
+            continue
+        if block.startswith("#") and current:
+            chunks.append(current)
+            current = ""
+        if len(block) > 900:
+            if current:
+                chunks.append(current)
+                current = ""
+            chunks.extend(chunk_text(block))
+        elif current and len(current) + 2 + len(block) > limit:
+            chunks.append(current)
+            current = block
+        else:
+            current = f"{current}\n\n{block}" if current else block
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+def _product_chunks():
+    """(label, chunk) pairs from the documents of active products, read from the database."""
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(ProductDocument, Product)
+            .join(Product, Product.id == ProductDocument.product_id)
+            .filter(Product.is_active.is_(True))
+            .order_by(Product.id, ProductDocument.doc_type)
+            .all()
+        )
+        pairs = []
+        for doc, product in rows:
+            label = f"{product.name} - {doc.title}"
+            for chunk in _chunk_blocks(doc.content):
+                pairs.append((label, chunk))
+        return pairs
+    finally:
+        db.close()
+
+
 def rebuild_index():
     """Rebuild the support index from every .txt in DOCS_DIR, save it, and swap it into
     the running server. Same method as scripts_build_index.py. Caller must hold _lock."""
     files = _doc_files()
-    chunks, sources = [], []
+    chunks, sources, embed_texts = [], [], []
     for filepath in files:
         with open(filepath, "r", encoding="utf-8") as f:
             text = f.read()
         for chunk in chunk_text(text):
             chunks.append(chunk)
+            embed_texts.append(chunk)
             sources.append(os.path.basename(filepath))
+    for label, chunk in _product_chunks():
+        chunks.append(chunk)
+        embed_texts.append(f"{label}: {chunk}")
+        sources.append(label)
     if not chunks:
         raise HTTPException(status_code=400, detail="No document content to index")
 
-    embeddings = np.array(rag.get_embedder().encode(chunks)).astype("float32")
+    embeddings = np.array(rag.get_embedder().encode(embed_texts)).astype("float32")
     index = faiss.IndexFlatL2(embeddings.shape[1])
     index.add(embeddings)
     meta = {"chunks": chunks, "sources": sources}
@@ -135,7 +188,7 @@ def list_documents():
     return {
         "documents": docs,
         "total_chunks": sum(counts.values()),
-        "in_sync": set(counts) == {d["filename"] for d in docs},
+        "in_sync": {s for s in counts if s.endswith(".txt")} == {d["filename"] for d in docs},
     }
 
 

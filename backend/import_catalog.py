@@ -1,4 +1,4 @@
-﻿import argparse
+import argparse
 import json
 import os
 import sys
@@ -152,6 +152,10 @@ def main():
     from app.ml.product_search import build_product_index
     build_product_index()
     print("Chat product index rebuilt.")
+
+    from app.services import knowledge_base as kb
+    files, chunks = kb.rebuild_all()
+    print(f"Chatbot knowledge index rebuilt: {files} document files plus product documents, {chunks} chunks in total.")
 
 
 if __name__ == "__main__":

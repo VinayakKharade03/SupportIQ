@@ -12,3 +12,31 @@ class ProductOut(BaseModel):
     price: float
     stock: int
     created_at: datetime | None = None
+    slug: str | None = None
+    brand: str | None = None
+    subcategory: str | None = None
+    tagline: str | None = None
+    mrp: float | None = None
+
+
+class SpecOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    group_name: str
+    name: str
+    value: str
+
+
+class DocumentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    doc_type: str
+    title: str
+    content: str
+
+
+class ProductDetail(ProductOut):
+    highlights: list[str] | None = None
+    in_the_box: list[str] | None = None
+    specs: list[SpecOut] = []
+    documents: list[DocumentOut] = []

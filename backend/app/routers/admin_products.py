@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -23,6 +23,17 @@ def _refresh_index():
         build_product_index()
     except Exception:
         logger.exception("Product index rebuild failed")
+
+
+def _refresh_knowledge():
+    """Rebuild the chatbot knowledge index so archived or renamed products are reflected at once.
+    A failure is logged, never raised, because the database change has already been saved."""
+    try:
+        from app.services import knowledge_base as kb
+
+        kb.rebuild_all()
+    except Exception:
+        logger.exception("Knowledge index rebuild failed")
 
 
 def _get_or_404(db: Session, product_id: int) -> Product:
@@ -84,6 +95,8 @@ def update_product(
     db.commit()
     db.refresh(product)
     _refresh_index()
+    if "name" in data:
+        _refresh_knowledge()
     return product
 
 
@@ -95,6 +108,7 @@ def archive_product(product_id: int, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(product)
         _refresh_index()
+        _refresh_knowledge()
     return product
 
 
@@ -106,4 +120,5 @@ def restore_product(product_id: int, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(product)
         _refresh_index()
+        _refresh_knowledge()
     return product

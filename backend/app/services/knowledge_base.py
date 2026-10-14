@@ -85,28 +85,53 @@ def _revert(path, backup):
         logger.exception("Could not revert %s", path)
 
 
-def _chunk_blocks(text, limit=600):
-    """Split a guide, troubleshooting or FAQ text at section and paragraph boundaries,
-    so one chunk usually holds one complete procedure or question."""
-    chunks, current = [], ""
-    for block in (b.strip() for b in text.split("\n\n")):
-        if not block:
+def _chunk_blocks(text, limit=700):
+    """Split a guide, troubleshooting or FAQ text into chunks of one section each. The section
+    heading is repeated on every chunk of that section, and the document title line is dropped
+    (the source label already names the product)."""
+    sections, heading, body = [], "", []
+
+    def close():
+        if "\n".join(body).strip():
+            sections.append((heading, "\n".join(body)))
+
+    for line in text.split("\n"):
+        if line.startswith("## "):
+            close()
+            heading, body = line, []
+        elif line.startswith("# "):
             continue
-        if block.startswith("#") and current:
-            chunks.append(current)
-            current = ""
-        if len(block) > 900:
-            if current:
-                chunks.append(current)
-                current = ""
-            chunks.extend(chunk_text(block))
-        elif current and len(current) + 2 + len(block) > limit:
-            chunks.append(current)
-            current = block
         else:
-            current = f"{current}\n\n{block}" if current else block
-    if current:
-        chunks.append(current)
+            body.append(line)
+    close()
+
+    chunks = []
+    for heading, body_text in sections:
+        parts = []
+        for para in (p.strip() for p in body_text.split("\n\n")):
+            if not para:
+                continue
+            if len(para) <= limit:
+                parts.append(para)
+                continue
+            current = ""
+            for line in para.split("\n"):
+                if current and len(current) + 1 + len(line) > limit:
+                    parts.append(current)
+                    current = line
+                else:
+                    current = f"{current}\n{line}" if current else line
+            if current:
+                parts.append(current)
+        group = ""
+        for part in parts:
+            if group and len(group) + 2 + len(part) > limit:
+                chunks.append(f"{heading}\n\n{group}" if heading else group)
+                group = part
+            else:
+                group = f"{group}\n\n{part}" if group else part
+        if group:
+            chunks.append(f"{heading}\n\n{group}" if heading else group)
     return chunks
 
 

@@ -45,20 +45,48 @@ def indexed_chunk_counts():
     return counts
 
 
+def _product_of(source):
+    """Product name from a label like 'Jibel Go 4 - FAQ', or None for the generic .txt documents."""
+    if source.endswith(".txt"):
+        return None
+    return source.rsplit(" - ", 1)[0]
+
+
+def _products_in_query(query, sources):
+    """Products the question names, by full name or by model (the name without its brand)."""
+    q = query.lower()
+    found = set()
+    for name in {_product_of(s) for s in sources} - {None}:
+        model = name.split(" ", 1)[1] if " " in name else name
+        if name.lower() in q or (len(model) >= 4 and model.lower() in q):
+            found.add(name)
+    return found
+
+
 def retrieve(query: str, top_k: int = 3):
-    """Returns the top_k most relevant chunks for a query, with their sources."""
+    """Returns the top_k most relevant chunks for a query, with their sources.
+    If the question names a product, only that product's chunks and the generic
+    documents are used, so two products' facts never get mixed in one answer."""
     _load()
     index, meta = _state
+    wanted = _products_in_query(query, meta["sources"])
+    fetch = min(index.ntotal, max(top_k * 15, 60)) if wanted else top_k
     query_vec = get_embedder().encode([query]).astype("float32")
-    distances, indices = index.search(query_vec, top_k)
+    distances, indices = index.search(query_vec, fetch)
 
     results = []
     for dist, idx in zip(distances[0], indices[0]):
         if idx == -1:
             continue
+        source = meta["sources"][idx]
+        product = _product_of(source)
+        if wanted and product is not None and product not in wanted:
+            continue
         results.append({
             "text": meta["chunks"][idx],
-            "source": meta["sources"][idx],
+            "source": source,
             "distance": float(dist),
         })
+        if len(results) == top_k:
+            break
     return results

@@ -1,8 +1,8 @@
 ﻿from sqlalchemy import (
-    Boolean, Column, DateTime, ForeignKey, Integer, JSON, Numeric, String, Text,
+    Boolean, Column, DateTime, ForeignKey, Integer, JSON, LargeBinary, Numeric, String, Text,
     UniqueConstraint, func, text,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import deferred, relationship
 
 from app.database import Base
 
@@ -35,6 +35,10 @@ class Product(Base):
     documents = relationship(
         "ProductDocument", back_populates="product", cascade="all, delete-orphan",
     )
+    images = relationship(
+        "ProductImage", back_populates="product",
+        cascade="all, delete-orphan", order_by="ProductImage.position",
+    )
 
 
 class ProductSpec(Base):
@@ -62,3 +66,19 @@ class ProductDocument(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     product = relationship("Product", back_populates="documents")
+
+
+class ProductImage(Base):
+    __tablename__ = "product_images"
+
+    id = Column(Integer, primary_key=True, index=True)
+    product_id = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True)
+    filename = Column(String(200), nullable=False)
+    content_type = Column(String(50), nullable=False)
+    size_bytes = Column(Integer, nullable=False)
+    alt = Column(String(200), nullable=True)
+    position = Column(Integer, nullable=False, server_default=text("0"))
+    is_primary = Column(Boolean, nullable=False, server_default=text("false"))
+    data = deferred(Column(LargeBinary, nullable=False))  # only loaded when the picture itself is served
+
+    product = relationship("Product", back_populates="images")

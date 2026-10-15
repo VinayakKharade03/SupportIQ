@@ -17,6 +17,7 @@ class ProductOut(BaseModel):
     subcategory: str | None = None
     tagline: str | None = None
     mrp: float | None = None
+    image_url: str | None = None
 
 
 class SpecOut(BaseModel):
@@ -35,8 +36,18 @@ class DocumentOut(BaseModel):
     content: str
 
 
+class ImageOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    alt: str | None = None
+    is_primary: bool
+    url: str | None = None
+
+
 class ProductDetail(ProductOut):
     highlights: list[str] | None = None
     in_the_box: list[str] | None = None
     specs: list[SpecOut] = []
     documents: list[DocumentOut] = []
+    images: list[ImageOut] = []

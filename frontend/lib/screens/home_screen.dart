@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../state/auth_provider.dart';
 import 'connection_check_screen.dart';
+import 'product_list_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -38,6 +39,15 @@ class HomeScreen extends StatelessWidget {
               const Chip(label: Text('Admin')),
             ],
             const SizedBox(height: 24),
+            FilledButton(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const ProductListScreen(),
+                ),
+              ),
+              child: const Text('Browse products'),
+            ),
+            const SizedBox(height: 12),
             OutlinedButton(
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute(

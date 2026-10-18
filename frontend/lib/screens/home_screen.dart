@@ -1,10 +1,11 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../state/auth_provider.dart';
 import '../state/cart_provider.dart';
 import 'cart_screen.dart';
 import 'connection_check_screen.dart';
+import 'orders_screen.dart';
 import 'product_list_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -56,6 +57,13 @@ class HomeScreen extends StatelessWidget {
                 MaterialPageRoute(builder: (_) => const CartScreen()),
               ),
               child: const Text('Cart'),
+            ),
+            const SizedBox(height: 12),
+            FilledButton.tonal(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const OrdersScreen()),
+              ),
+              child: const Text('My orders'),
             ),
             const SizedBox(height: 12),
             OutlinedButton(

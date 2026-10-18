@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Platform;
 
@@ -171,6 +171,9 @@ class ApiClient {
     }
     return res;
   }
+
+  Map<String, dynamic> decode(http.Response res) =>
+      jsonDecode(res.body) as Map<String, dynamic>;
 
   Future<Map<String, dynamic>> me() async {
     final res = await send('GET', '/auth/me');

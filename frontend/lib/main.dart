@@ -5,6 +5,7 @@ import 'api/api_client.dart';
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart';
 import 'state/auth_provider.dart';
+import 'state/cart_provider.dart';
 
 void main() {
   runApp(const SupportIQApp());
@@ -21,6 +22,9 @@ class SupportIQApp extends StatelessWidget {
         ChangeNotifierProvider<AuthProvider>(
           create: (ctx) =>
               AuthProvider(ctx.read<ApiClient>())..restoreSession(),
+        ),
+        ChangeNotifierProvider<CartProvider>(
+          create: (ctx) => CartProvider(ctx.read<ApiClient>()),
         ),
       ],
       child: MaterialApp(

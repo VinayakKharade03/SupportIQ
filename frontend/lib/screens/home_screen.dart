@@ -2,6 +2,8 @@
 import 'package:provider/provider.dart';
 
 import '../state/auth_provider.dart';
+import '../state/cart_provider.dart';
+import 'cart_screen.dart';
 import 'connection_check_screen.dart';
 import 'product_list_screen.dart';
 
@@ -20,7 +22,10 @@ class HomeScreen extends StatelessWidget {
           IconButton(
             tooltip: 'Log out',
             icon: const Icon(Icons.logout),
-            onPressed: () => context.read<AuthProvider>().logout(),
+            onPressed: () {
+              context.read<CartProvider>().clear();
+              context.read<AuthProvider>().logout();
+            },
           ),
         ],
       ),
@@ -41,18 +46,22 @@ class HomeScreen extends StatelessWidget {
             const SizedBox(height: 24),
             FilledButton(
               onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => const ProductListScreen(),
-                ),
+                MaterialPageRoute(builder: (_) => const ProductListScreen()),
               ),
               child: const Text('Browse products'),
+            ),
+            const SizedBox(height: 12),
+            FilledButton.tonal(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const CartScreen()),
+              ),
+              child: const Text('Cart'),
             ),
             const SizedBox(height: 12),
             OutlinedButton(
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (_) => const ConnectionCheckScreen(),
-                ),
+                    builder: (_) => const ConnectionCheckScreen()),
               ),
               child: const Text('Connection check'),
             ),

@@ -2,8 +2,11 @@
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:provider/provider.dart';
 
 import '../api/api_client.dart';
+import '../state/cart_provider.dart';
+import 'cart_screen.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   final int productId;
@@ -24,6 +27,9 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   void initState() {
     super.initState();
     _load();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<CartProvider>().load();
+    });
   }
 
   Future<void> _load() async {
@@ -53,6 +59,27 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     }
   }
 
+  Future<void> _addToCart() async {
+    final cart = context.read<CartProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+    final nav = Navigator.of(context);
+    final ok = await cart.add(widget.productId);
+    messenger.hideCurrentSnackBar();
+    if (ok) {
+      messenger.showSnackBar(SnackBar(
+        content: const Text('Added to cart'),
+        action: SnackBarAction(
+          label: 'View cart',
+          onPressed: () =>
+              nav.push(MaterialPageRoute(builder: (_) => const CartScreen())),
+        ),
+      ));
+    } else {
+      messenger.showSnackBar(
+          SnackBar(content: Text(cart.error ?? 'Could not add to cart')));
+    }
+  }
+
   String _money(num v) => 'Rs ${v.toStringAsFixed(0)}';
 
   List<Map<String, dynamic>> _list(String key) =>
@@ -63,8 +90,25 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final cart = context.watch<CartProvider>();
+    final stock = (_p?['stock'] as num?)?.toInt() ?? 0;
     return Scaffold(
-      appBar: AppBar(title: Text(_p?['name'] as String? ?? widget.title ?? 'Product')),
+      appBar: AppBar(
+        title: Text(_p?['name'] as String? ?? widget.title ?? 'Product'),
+        actions: [
+          IconButton(
+            tooltip: 'Cart',
+            icon: Badge(
+              isLabelVisible: cart.units > 0,
+              label: Text('${cart.units}'),
+              child: const Icon(Icons.shopping_cart_outlined),
+            ),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const CartScreen()),
+            ),
+          ),
+        ],
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
@@ -80,6 +124,18 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                   ),
                 )
               : _content(context),
+      bottomNavigationBar: (_p == null)
+          ? null
+          : SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: FilledButton.icon(
+                  onPressed: (stock > 0 && !cart.busy) ? _addToCart : null,
+                  icon: const Icon(Icons.add_shopping_cart),
+                  label: Text(stock > 0 ? 'Add to cart' : 'Out of stock'),
+                ),
+              ),
+            ),
     );
   }
 
@@ -105,7 +161,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
       groups.putIfAbsent(s['group_name'] as String, () => []).add(s);
     }
 
-    final safeIndex = images.isEmpty ? 0 : _imageIndex.clamp(0, images.length - 1);
+    final safeIndex =
+        images.isEmpty ? 0 : _imageIndex.clamp(0, images.length - 1);
 
     return Align(
       alignment: Alignment.topCenter,

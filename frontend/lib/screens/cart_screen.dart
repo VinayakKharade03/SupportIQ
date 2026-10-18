@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../state/cart_provider.dart';
@@ -90,13 +90,42 @@ class _CartScreenState extends State<CartScreen> {
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Text(_money(it['line_total'] as num),
+                                  IconButton(
+                                    tooltip: 'Decrease',
+                                    icon: Icon((it['quantity'] as num) <= 1
+                                        ? Icons.delete_outline
+                                        : Icons.remove_circle_outline),
+                                    onPressed: cart.busy
+                                        ? null
+                                        : () => cart.setQuantity(
+                                            (it['product_id'] as num).toInt(),
+                                            (it['quantity'] as num).toInt() - 1),
+                                  ),
+                                  Text('${it['quantity']}',
                                       style: Theme.of(context)
                                           .textTheme
                                           .titleMedium),
                                   IconButton(
-                                    tooltip: 'Remove',
-                                    icon: const Icon(Icons.delete_outline),
+                                    tooltip: 'Increase',
+                                    icon: const Icon(Icons.add_circle_outline),
+                                    onPressed: cart.busy
+                                        ? null
+                                        : () => cart.add(
+                                            (it['product_id'] as num).toInt()),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  SizedBox(
+                                    width: 80,
+                                    child: Text(
+                                        _money(it['line_total'] as num),
+                                        textAlign: TextAlign.end,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleMedium),
+                                  ),
+                                  IconButton(
+                                    tooltip: 'Remove item',
+                                    icon: const Icon(Icons.close),
                                     onPressed: cart.busy
                                         ? null
                                         : () => cart.remove(

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart';
 
 import '../api/api_client.dart';
 
@@ -66,6 +66,27 @@ class CartProvider extends ChangeNotifier {
     });
   }
 
+  /// Sets a line to an exact quantity. Quantity 0 removes the line.
+  /// The API has no update endpoint, so this is remove then add.
+  Future<bool> setQuantity(int productId, int quantity) async {
+    final ok = await _run(() async {
+      final res = await api.send('POST', '/orders/cart/remove',
+          body: {'product_id': productId});
+      _apply(api.decode(res));
+      if (quantity > 0) {
+        final res2 = await api.send('POST', '/orders/cart/add',
+            body: {'product_id': productId, 'quantity': quantity});
+        _apply(api.decode(res2));
+      }
+    });
+    if (!ok) {
+      final message = _error;
+      await load(); // show the true cart state after a partial failure
+      _error = message;
+      notifyListeners();
+    }
+    return ok;
+  }
   /// Returns the confirm response (order_id, status, total, message) or null.
   Future<Map<String, dynamic>?> confirm() async {
     Map<String, dynamic>? result;

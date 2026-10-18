@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 import '../api/api_client.dart';
+import 'product_detail_screen.dart';
 
 class ProductListScreen extends StatefulWidget {
   const ProductListScreen({super.key});
@@ -148,7 +149,17 @@ class _ProductListScreenState extends State<ProductListScreen> {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => ProductDetailScreen(
+              productId: (p['id'] as num).toInt(),
+              title: p['name'] as String?,
+            ),
+          ),
+        ),
+        child: Padding(
         padding: const EdgeInsets.all(12),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -215,6 +226,7 @@ class _ProductListScreenState extends State<ProductListScreen> {
               ),
             ),
           ],
+        ),
         ),
       ),
     );

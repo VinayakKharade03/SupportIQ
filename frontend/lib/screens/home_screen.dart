@@ -5,6 +5,7 @@ import '../state/auth_provider.dart';
 import '../state/cart_provider.dart';
 import 'cart_screen.dart';
 import 'call_screen.dart';
+import 'admin/admin_home_screen.dart';
 import 'chat_screen.dart';
 import 'connection_check_screen.dart';
 import 'orders_screen.dart';
@@ -90,6 +91,15 @@ class HomeScreen extends StatelessWidget {
               ),
               child: const Text('Connection check'),
             ),
+            if (auth.isAdmin) ...[
+              const SizedBox(height: 12),
+              FilledButton.tonal(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const AdminHomeScreen()),
+                ),
+                child: const Text('Admin dashboard'),
+              ),
+            ],
           ],
         ),
       ),

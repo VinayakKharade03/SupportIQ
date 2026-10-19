@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../state/auth_provider.dart';
 import '../state/cart_provider.dart';
 import 'cart_screen.dart';
+import 'call_screen.dart';
 import 'chat_screen.dart';
 import 'connection_check_screen.dart';
 import 'orders_screen.dart';
@@ -72,6 +73,14 @@ class HomeScreen extends StatelessWidget {
                 MaterialPageRoute(builder: (_) => const ChatScreen()),
               ),
               child: const Text('Support chat'),
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const CallScreen()),
+              ),
+              icon: const Icon(Icons.call),
+              label: const Text('Call support'),
             ),
             const SizedBox(height: 12),
             OutlinedButton(

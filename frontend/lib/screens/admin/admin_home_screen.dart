@@ -1,10 +1,12 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../api/api_client.dart';
 import 'admin_tickets_screen.dart';
+import 'admin_users_screen.dart';
+import 'admin_orders_screen.dart';
 
 class AdminHomeScreen extends StatefulWidget {
   const AdminHomeScreen({super.key});
@@ -153,6 +155,22 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               ),
               icon: const Icon(Icons.support_agent),
               label: const Text('Tickets'),
+            ),
+            const SizedBox(height: 8),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const AdminOrdersScreen()),
+              ),
+              icon: const Icon(Icons.receipt_long),
+              label: const Text('Orders'),
+            ),
+            const SizedBox(height: 8),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const AdminUsersScreen()),
+              ),
+              icon: const Icon(Icons.people),
+              label: const Text('Users'),
             ),
           ],
         ),

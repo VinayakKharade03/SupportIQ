@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../api/api_client.dart';
 import 'admin_tickets_screen.dart';
 import 'admin_users_screen.dart';
+import 'admin_products_screen.dart';
 import 'admin_orders_screen.dart';
 
 class AdminHomeScreen extends StatefulWidget {
@@ -171,6 +172,14 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               ),
               icon: const Icon(Icons.people),
               label: const Text('Users'),
+            ),
+            const SizedBox(height: 8),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const AdminProductsScreen()),
+              ),
+              icon: const Icon(Icons.inventory_2),
+              label: const Text('Products'),
             ),
           ],
         ),

@@ -2,12 +2,15 @@
 import 'package:provider/provider.dart';
 
 import '../api/api_client.dart';
+import '../api/chat_stream.dart';
 import '../state/cart_provider.dart';
 
 class _Msg {
-  final String text;
+  String text;
   final bool fromUser;
-  final bool isError;
+  bool isError;
+  bool flagged = false;
+  int? ticketId;
   _Msg(this.text, {required this.fromUser, this.isError = false});
 }
 
@@ -39,11 +42,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void _scrollToEnd() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scroll.hasClients) {
-        _scroll.animateTo(
-          _scroll.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOut,
-        );
+        _scroll.jumpTo(_scroll.position.maxScrollExtent);
       }
     });
   }
@@ -54,31 +53,48 @@ class _ChatScreenState extends State<ChatScreen> {
     final api = context.read<ApiClient>();
     final cart = context.read<CartProvider>();
     _input.clear();
+    final bot = _Msg('', fromUser: false);
     setState(() {
       _messages.add(_Msg(text, fromUser: true));
+      _messages.add(bot);
       _sending = true;
     });
     _scrollToEnd();
 
     try {
-      final res = await api.send('POST', '/support/chat', body: {'message': text});
-      final reply = api.decode(res)['reply'] as String? ?? '';
-      if (!mounted) return;
-      setState(() => _messages.add(_Msg(reply, fromUser: false)));
-      cart.load(); // chat orders can change the cart
+      await for (final ev in chatStream(api, text)) {
+        if (!mounted) return;
+        if (ev['token'] is String) {
+          setState(() => bot.text += ev['token'] as String);
+          _scrollToEnd();
+        } else if (ev['escalate'] == true) {
+          setState(() {
+            bot.flagged = true;
+            bot.ticketId = (ev['ticket_id'] as num?)?.toInt();
+          });
+        }
+      }
     } catch (e) {
       if (!mounted) return;
       final msg = e is ApiException
           ? e.message
-          : 'Cannot reach the server. Is the backend running?';
-      setState(() => _messages.add(_Msg(msg, fromUser: false, isError: true)));
+          : 'Connection lost. Is the backend running?';
+      setState(() {
+        if (bot.text.isEmpty) {
+          bot.text = msg;
+          bot.isError = true;
+        } else {
+          bot.text += '\n\n[$msg]';
+        }
+      });
     }
     if (!mounted) return;
     setState(() => _sending = false);
     _scrollToEnd();
+    cart.load(); // chat orders can change the cart
   }
 
-  Widget _bubble(_Msg m) {
+  Widget _bubble(_Msg m, bool waiting) {
     final scheme = Theme.of(context).colorScheme;
     final bg = m.isError
         ? scheme.errorContainer
@@ -96,7 +112,36 @@ class _ChatScreenState extends State<ChatScreen> {
           color: bg,
           borderRadius: BorderRadius.circular(16),
         ),
-        child: SelectableText(m.text, style: TextStyle(color: fg)),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (waiting && m.text.isEmpty)
+              const SizedBox(
+                height: 18,
+                width: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            else
+              SelectableText(m.text, style: TextStyle(color: fg)),
+            if (m.flagged) ...[
+              const SizedBox(height: 6),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.flag, size: 14, color: scheme.error),
+                  const SizedBox(width: 4),
+                  Text(
+                    m.ticketId != null
+                        ? 'Flagged for priority review (ticket #${m.ticketId})'
+                        : 'Flagged for priority review',
+                    style: TextStyle(fontSize: 12, color: scheme.error),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -111,23 +156,9 @@ class _ChatScreenState extends State<ChatScreen> {
             child: ListView.builder(
               controller: _scroll,
               padding: const EdgeInsets.all(12),
-              itemCount: _messages.length + (_sending ? 1 : 0),
-              itemBuilder: (context, i) {
-                if (i == _messages.length) {
-                  return const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Padding(
-                      padding: EdgeInsets.all(12),
-                      child: SizedBox(
-                        height: 18,
-                        width: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                    ),
-                  );
-                }
-                return _bubble(_messages[i]);
-              },
+              itemCount: _messages.length,
+              itemBuilder: (context, i) => _bubble(
+                  _messages[i], _sending && i == _messages.length - 1),
             ),
           ),
           SafeArea(

@@ -1,4 +1,4 @@
-﻿import base64
+import base64
 import json
 import os
 import re
@@ -19,6 +19,7 @@ from app.ml.product_search import build_product_index
 from app.ml.rag import retrieve
 from app.routers.support import MAX_DISTANCE, NO_ANSWER_REPLY, build_prompt_with_context
 from app.services import tts
+from app.services.name_fix import fix as fix_transcript
 from app.services.order_agent import LOGIN_REPLY, get_optional_user, handle_order
 from app.services.tickets import create_ticket, should_escalate
 
@@ -117,7 +118,7 @@ def voice_reply(
     user: User | None = Depends(get_optional_user),
     db: Session = Depends(get_db),
 ):
-    text = _transcribe(file)
+    text = fix_transcript(_transcribe(file))
     intent = classify_intent(text) if text else "none"
     print(f"[VOICE] heard '{text}' -> {intent}")
 

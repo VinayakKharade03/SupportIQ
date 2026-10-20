@@ -17,7 +17,14 @@ from app.ml.intent_router import classify_intent
 from app.ml.model_loader import get_llm, get_whisper
 from app.ml.product_search import build_product_index
 from app.ml.rag import retrieve
-from app.routers.support import MAX_DISTANCE, NO_ANSWER_REPLY, build_prompt_with_context
+from app.routers.support import (
+    GREETING_REPLY,
+    MAX_DISTANCE,
+    NO_ANSWER_REPLY,
+    REFUND_REPLY,
+    build_prompt_with_context,
+    is_greeting,
+)
 from app.services import tts
 from app.services.name_fix import fix as fix_transcript
 from app.services.order_agent import LOGIN_REPLY, get_optional_user, handle_order
@@ -53,7 +60,7 @@ def warm_up():
         ("product index", build_product_index),
         ("retrieval", lambda: retrieve("warm up", top_k=1)),
         ("TTS", tts.warm_up),
-        ("TTS cache", lambda: tts.precache([NO_ANSWER_REPLY, LOGIN_REPLY, NOT_HEARD_REPLY])),
+        ("TTS cache", lambda: tts.precache([NO_ANSWER_REPLY, LOGIN_REPLY, NOT_HEARD_REPLY, GREETING_REPLY, REFUND_REPLY])),
     ]
     for name, step in steps:
         start = time.time()
@@ -126,6 +133,8 @@ def voice_reply(
     ticket_id = None
     if not text:
         tokens = [NOT_HEARD_REPLY]
+    elif is_greeting(text):
+        tokens = [GREETING_REPLY]
     elif intent == "order":
         tokens = [handle_order(text, user, db)]
     else:
@@ -143,7 +152,7 @@ def voice_reply(
         else:
             tokens = _llm_tokens(prompt)
         if ticket_id:
-            tokens = _with_note(tokens, ESCALATION_NOTE)
+            tokens = [REFUND_REPLY] if category == "refund_request" else _with_note(tokens, ESCALATION_NOTE)
 
     def events():
         yield _event({"transcript": text})

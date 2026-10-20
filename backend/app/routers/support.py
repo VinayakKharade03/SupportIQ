@@ -1,8 +1,9 @@
-﻿import os
+import os
 import time
 import tempfile
 import uuid
 import json
+import re
 
 from fastapi import APIRouter, Depends, UploadFile, File
 from fastapi.responses import StreamingResponse
@@ -35,6 +36,26 @@ NO_ANSWER_REPLY = (
 )
 
 
+GREETING_REPLY = (
+    "Hello! I can help with your products, Bluetooth or charging issues, "
+    "warranty questions, or placing an order. What can I do for you?"
+)
+REFUND_REPLY = (
+    "I'm sorry about this. I've passed your refund request to our support team "
+    "for priority review, and they will follow up with you. "
+    "I can't approve refunds myself."
+)
+_GREETING = re.compile(
+    r"^\s*(?:hi+|hello|hey+|namaste|good\s+(?:morning|afternoon|evening))"
+    r"(?:\s+(?:there|support|team|everyone))?\s*[.!?]*\s*$",
+    re.I,
+)
+
+
+def is_greeting(text: str) -> bool:
+    return bool(_GREETING.match(text or ""))
+
+
 def build_prompt_with_context(user_message: str):
     start = time.time()
     chunks = retrieve(user_message, top_k=3)
@@ -51,6 +72,9 @@ def handle_support(
     db: Session | None = None,
     source: str = "chat",
 ) -> str:
+    if is_greeting(user_message):
+        return GREETING_REPLY
+
     sentiment, category = classify(user_message)
     escalate = should_escalate(sentiment, category)
     print(f"[CLASSIFY] sentiment={sentiment} category={category} escalate={escalate}")
@@ -58,6 +82,9 @@ def handle_support(
     if escalate and db is not None:
         ticket = create_ticket(db, user, user_message, sentiment, category, source)
         print(f"[TICKET] opened #{ticket.id}")
+
+    if escalate and category == "refund_request":
+        return REFUND_REPLY
 
     prompt_with_context, retrieval_time, best_distance = build_prompt_with_context(user_message)
 
@@ -117,6 +144,12 @@ def chat_stream(
             yield f"data: {json.dumps({'done': True})}\n\n"
         return StreamingResponse(order_generator(), media_type="text/event-stream")
 
+    if is_greeting(request.message):
+        def greeting_generator():
+            yield f"data: {json.dumps({'token': GREETING_REPLY})}\n\n"
+            yield f"data: {json.dumps({'done': True})}\n\n"
+        return StreamingResponse(greeting_generator(), media_type="text/event-stream")
+
     sentiment, category = classify(request.message)
     escalate = should_escalate(sentiment, category)
     print(f"[CLASSIFY] sentiment={sentiment} category={category} escalate={escalate}")
@@ -127,6 +160,13 @@ def chat_stream(
         ticket_id = create_ticket(db, user, request.message, sentiment, category, "chat").id
         print(f"[TICKET] opened #{ticket_id}")
         escalate_event = f"data: {json.dumps({'escalate': True, 'ticket_id': ticket_id})}\n\n"
+
+    if escalate and category == "refund_request":
+        def refund_generator():
+            yield f"data: {json.dumps({'token': REFUND_REPLY})}\n\n"
+            yield escalate_event
+            yield f"data: {json.dumps({'done': True})}\n\n"
+        return StreamingResponse(refund_generator(), media_type="text/event-stream")
 
     prompt_with_context, retrieval_time, best_distance = build_prompt_with_context(request.message)
     print(f"[TIMING] Retrieval: {retrieval_time:.3f}s")

@@ -19,6 +19,7 @@ from app.ml.product_search import build_product_index
 from app.ml.rag import retrieve
 from app.routers.support import (
     GREETING_REPLY,
+    greeting_for,
     MAX_DISTANCE,
     NO_ANSWER_REPLY,
     REFUND_REPLY,
@@ -43,6 +44,13 @@ VOICE_SYSTEM_PROMPT = (
 VOICE_REMINDER = (
     "\n\nReply in at most two short spoken sentences. Start directly with the answer: "
     "no lead-in, no steps, no lists."
+)
+VOICE_SYSTEM_PROMPT = (
+    "You are CARE, a warm and calm phone support assistant for an audio electronics "
+    "store, speaking to a customer on a call. Reply in at most two short spoken "
+    "sentences. Start with the answer itself, never with phrases like 'based on the "
+    "context'. Never use lists, numbered steps, markdown, or emojis. Use only the "
+    "provided context. If the context does not cover the question, say so briefly."
 )
 VOICE_MAX_TOKENS = 120
 MAX_SPOKEN_SENTENCES = 2
@@ -94,7 +102,7 @@ def _llm_tokens(prompt: str):
     stream = get_llm().create_chat_completion(
         messages=[
             {"role": "system", "content": VOICE_SYSTEM_PROMPT},
-            {"role": "user", "content": prompt + VOICE_REMINDER},
+            {"role": "user", "content": prompt},
         ],
         max_tokens=VOICE_MAX_TOKENS,
         stream=True,
@@ -134,7 +142,7 @@ def voice_reply(
     if not text:
         tokens = [NOT_HEARD_REPLY]
     elif is_greeting(text):
-        tokens = [GREETING_REPLY]
+        tokens = [greeting_for(user)]
     elif intent == "order":
         tokens = [handle_order(text, user, db)]
     else:

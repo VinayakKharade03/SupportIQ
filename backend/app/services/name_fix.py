@@ -8,10 +8,10 @@ from app.models.product import Product
 # Known Whisper mishearings in this catalog. Order matters.
 _RULES = [
     # product name misheard variants -> Jibel
-    (re.compile(r"\b(?:g[- ]?bell|gbl|gibel|jebel|jibble|gabel|jibil)\b", re.I), "Jibel"),
+    (re.compile(r"\b(?:g[- ]?bell|gbl|jbl|gibel|jebel|jibble|gabel|jibil)\b", re.I), "Jibel"),
     (re.compile(r"\b(?:soni|sony|sonny|sonie)\b", re.I), "Soney"),
     # "Jibel Go for" / "Jibel Go4" / "Jibel Go four" -> "Jibel Go 4"
-    (re.compile(r"\b(Jibel Go)\s*(?:for|four|4)\b", re.I), r"\1 4"),
+    (re.compile(r"\b(Jibel Go)\s*(?:for|four|4)\b|\b(Jibel)\s+gofor\b", re.I), r"\1 4"),
     # "card" is almost always "cart" in a shop, unless it is a real kind of card
     (re.compile(
         r"(?<!credit )(?<!debit )(?<!gift )(?<!sim )(?<!sd )(?<!memory )"

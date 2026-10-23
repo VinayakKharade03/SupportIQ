@@ -1,4 +1,5 @@
-﻿from llama_cpp import Llama
+import os
+from llama_cpp import Llama
 from pywhispercpp.model import Model as WhisperModel
 
 _llm = None
@@ -9,7 +10,7 @@ def get_llm():
     global _llm
     if _llm is None:
         _llm = Llama(
-            model_path="models/phi-3-mini-q4.gguf",
+            model_path=os.getenv("LLM_MODEL", "models/qwen2.5-3b-instruct-q4_k_m.gguf"),
             n_gpu_layers=-1,
             n_ctx=2048,
             verbose=False,

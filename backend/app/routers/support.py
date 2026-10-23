@@ -14,6 +14,7 @@ from app.models.user import User
 from app.schemas.chat import ChatRequest, ChatResponse
 from app.ml.model_loader import get_llm, get_whisper
 from app.ml.rag import retrieve
+from app.services.hinglish import to_english_query
 from app.ml.intent_router import classify_intent
 from app.ml.classifiers import classify
 from app.services.order_agent import handle_order, get_optional_user
@@ -34,6 +35,68 @@ NO_ANSWER_REPLY = (
     "charging issues, warranty questions, or placing an order, or I can connect "
     "you with our support team."
 )
+
+
+CARE_NAME = "CARE"
+CARE_PERSONA = (
+    "You are CARE, the Conversational Assistant for Resolution & E-Commerce: a warm, "
+    "calm and capable support assistant for an audio electronics store. Speak in the "
+    "first person, plainly and kindly, like a trusted colleague.\n\n"
+    "RULES:\n"
+    "1. Start with the answer itself. Never open with 'Dear Customer' or a letter-style greeting.\n"
+    "2. Use ONLY the provided context. Say: I don't have that detail ONLY if the topic is not mentioned at all. "
+    "A statement that something is absent, such as no aux input, IS an answer: give it. Never guess.\n"
+    "3. Give only steps and facts that are written in the context. Never invent repair steps, "
+    "ports, features or numbers.\n"
+    "4. Name only brands and products that appear in the context. Never mention any other brand.\n"
+    "5. Answer the whole question. For yes/no questions, say yes or no only if the context states it, "
+    "and make sure the details you add agree with it.\n"
+    "6. LANGUAGE: reply in the language of the customer's LAST message. English message: reply in English. "
+    "Hinglish message (Hindi in Roman letters): reply in simple Hinglish in Roman letters. "
+    "The examples below are labelled only to show the format. Never copy their language.\n"
+    "7. Keep answers short: at most three sentences, or a few short numbered steps.\n"
+    "8. If the customer sounds upset, start with one short sorry or understanding sentence, then help.\n"
+    "9. Do not end with offers like 'How can I help with something else?'. Only mention the support "
+    "team if the context cannot solve the problem.\n"
+    "10. Never promise things the context does not state, such as lifetime or guaranteed results.\n\n"
+    "LANGUAGE-TAGGED EXAMPLES:\n"
+    "Context: The Acme X1 has Bluetooth 5.0 and no aux input.\n"
+    "(English customer) does the Acme X1 have an aux port\n"
+    "CARE: No, the Acme X1 has no aux input. Connect it over Bluetooth.\n\n"
+    "Context: The Acme X1 has Bluetooth 5.0 and no aux input.\n"
+    "(English customer) does the Acme X1 have NFC\n"
+    "CARE: I don't have that detail. The information I have only mentions Bluetooth 5.0.\n\n"
+    "Context: The Acme X1 has Bluetooth 5.0 and no aux input.\n"
+    "(Hinglish customer) Acme X1 mein NFC hai kya\n"
+    "CARE: Mere paas NFC ki jaankari nahi hai. Mere paas sirf Bluetooth 5.0 ki jaankari hai.\n\n"
+    "Context: Charge the Acme X1 for 2 hours with a 5 V adapter.\n"
+    "(Hinglish customer) Acme X1 kitni der mein charge hota hai\n"
+    "CARE: Acme X1 ko 5 V adapter se lagbhag 2 ghante mein charge karein.\n\n"
+    "Context: Hold the power button for 10 seconds to reset the Acme X1.\n"
+    "(English customer) this is useless, it keeps freezing\n"
+    "CARE: I'm sorry about that. Hold the power button for 10 seconds to reset it."
+)
+SYSTEM_PROMPT = CARE_PERSONA
+NO_ANSWER_REPLY = (
+    "I'm sorry, I don't have information on that yet. I can help with your products, "
+    "Bluetooth and charging problems, warranty questions, or placing an order, "
+    "or I can connect you with our support team."
+)
+
+
+def greeting_for(user=None) -> str:
+    """Time-of-day greeting, with the first name when the user is logged in."""
+    from datetime import datetime
+
+    hour = datetime.now().hour
+    part = "morning" if hour < 12 else ("afternoon" if hour < 17 else "evening")
+    full = (getattr(user, "full_name", None) or "").strip()
+    name = full.split()[0] if full else ""
+    who = f", {name}" if name else ""
+    return (
+        f"Good {part}{who}. I'm CARE. I can help with your products, troubleshooting, "
+        "warranty questions, or placing an order. What can I do for you?"
+    )
 
 
 GREETING_REPLY = (
@@ -58,7 +121,7 @@ def is_greeting(text: str) -> bool:
 
 def build_prompt_with_context(user_message: str):
     start = time.time()
-    chunks = retrieve(user_message, top_k=3)
+    chunks = retrieve(to_english_query(user_message), top_k=3)
     retrieval_time = time.time() - start
     best_distance = min((c["distance"] for c in chunks), default=float("inf"))
     context_text = "\n\n".join([f"[{c['source']}]\n{c['text']}" for c in chunks])
@@ -73,7 +136,7 @@ def handle_support(
     source: str = "chat",
 ) -> str:
     if is_greeting(user_message):
-        return GREETING_REPLY
+        return greeting_for(user)
 
     sentiment, category = classify(user_message)
     escalate = should_escalate(sentiment, category)
@@ -146,7 +209,7 @@ def chat_stream(
 
     if is_greeting(request.message):
         def greeting_generator():
-            yield f"data: {json.dumps({'token': GREETING_REPLY})}\n\n"
+            yield f"data: {json.dumps({'token': greeting_for(user)})}\n\n"
             yield f"data: {json.dumps({'done': True})}\n\n"
         return StreamingResponse(greeting_generator(), media_type="text/event-stream")
 

@@ -1,8 +1,14 @@
-﻿import re
+import os
+import re
 import time
 
 from app.ml.model_loader import get_llm
-from app.routers.support import MAX_DISTANCE, NO_ANSWER_REPLY, SYSTEM_PROMPT, build_prompt_with_context
+from app.routers.support import (
+    MAX_DISTANCE, NO_ANSWER_REPLY, SAMPLING, SYSTEM_PROMPT,
+    build_prompt_with_context, clean_reply, FEWSHOT,
+)
+
+REPEATS = int(os.getenv("REPEATS", "1"))
 
 GROUPS = {
     "ENGLISH": [
@@ -35,6 +41,7 @@ GROUPS = {
     ],
 }
 
+print("sampling:", SAMPLING, "| repeats:", REPEATS)
 llm = get_llm()
 for group, questions in GROUPS.items():
     print("\n" + "#" * 70)
@@ -49,10 +56,13 @@ for group, questions in GROUPS.items():
         if best > MAX_DISTANCE:
             print("A: [CUTOFF, model not used]", NO_ANSWER_REPLY)
             continue
-        t = time.time()
-        out = llm.create_chat_completion(
-            messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": prompt}],
-            max_tokens=200,
-        )
-        reply = out["choices"][0]["message"]["content"]
-        print(f"A: {reply}  [{time.time() - t:.1f}s]")
+        for i in range(REPEATS):
+            t = time.time()
+            out = llm.create_chat_completion(
+                messages=[{"role": "system", "content": SYSTEM_PROMPT}, *FEWSHOT, {"role": "user", "content": prompt}],
+                max_tokens=200,
+                **SAMPLING,
+            )
+            reply = clean_reply(out["choices"][0]["message"]["content"])
+            tag = f"run {i + 1}: " if REPEATS > 1 else ""
+            print(f"A: {tag}{reply}  [{time.time() - t:.1f}s]")

@@ -22,6 +22,9 @@ from app.services.tickets import create_ticket, should_escalate
 
 router = APIRouter()
 
+# Low-randomness decoding: factual answers, fewer self-contradictions
+SAMPLING = {"temperature": 0.2, "top_p": 0.9, "repeat_penalty": 1.1}
+
 SYSTEM_PROMPT = (
     "You are a helpful customer support assistant for an audio electronics brand. "
     "Use the provided context to answer accurately. If the context doesn't cover "
@@ -39,44 +42,30 @@ NO_ANSWER_REPLY = (
 
 CARE_NAME = "CARE"
 CARE_PERSONA = (
-    "You are CARE, the Conversational Assistant for Resolution & E-Commerce: a warm, "
-    "calm and capable support assistant for an audio electronics store. Speak in the "
-    "first person, plainly and kindly, like a trusted colleague.\n\n"
-    "RULES:\n"
-    "1. Start with the answer itself. Never open with 'Dear Customer' or a letter-style greeting.\n"
-    "2. Use ONLY the provided context. Say: I don't have that detail ONLY if the topic is not mentioned at all. "
-    "A statement that something is absent, such as no aux input, IS an answer: give it. Never guess.\n"
-    "3. Give only steps and facts that are written in the context. Never invent repair steps, "
-    "ports, features or numbers.\n"
-    "4. Name only brands and products that appear in the context. Never mention any other brand.\n"
-    "5. Answer the whole question. For yes/no questions, say yes or no only if the context states it, "
-    "and make sure the details you add agree with it.\n"
-    "6. LANGUAGE: reply in the language of the customer's LAST message. English message: reply in English. "
-    "Hinglish message (Hindi in Roman letters): reply in simple Hinglish in Roman letters. "
-    "The examples below are labelled only to show the format. Never copy their language.\n"
-    "7. Keep answers short: at most three sentences, or a few short numbered steps.\n"
-    "8. If the customer sounds upset, start with one short sorry or understanding sentence, then help.\n"
-    "9. Do not end with offers like 'How can I help with something else?'. Only mention the support "
-    "team if the context cannot solve the problem.\n"
-    "10. Never promise things the context does not state, such as lifetime or guaranteed results.\n\n"
-    "LANGUAGE-TAGGED EXAMPLES:\n"
-    "Context: The Acme X1 has Bluetooth 5.0 and no aux input.\n"
-    "(English customer) does the Acme X1 have an aux port\n"
-    "CARE: No, the Acme X1 has no aux input. Connect it over Bluetooth.\n\n"
-    "Context: The Acme X1 has Bluetooth 5.0 and no aux input.\n"
-    "(English customer) does the Acme X1 have NFC\n"
-    "CARE: I don't have that detail. The information I have only mentions Bluetooth 5.0.\n\n"
-    "Context: The Acme X1 has Bluetooth 5.0 and no aux input.\n"
-    "(Hinglish customer) Acme X1 mein NFC hai kya\n"
-    "CARE: Mere paas NFC ki jaankari nahi hai. Mere paas sirf Bluetooth 5.0 ki jaankari hai.\n\n"
-    "Context: Charge the Acme X1 for 2 hours with a 5 V adapter.\n"
-    "(Hinglish customer) Acme X1 kitni der mein charge hota hai\n"
-    "CARE: Acme X1 ko 5 V adapter se lagbhag 2 ghante mein charge karein.\n\n"
-    "Context: Hold the power button for 10 seconds to reset the Acme X1.\n"
-    "(English customer) this is useless, it keeps freezing\n"
-    "CARE: I'm sorry about that. Hold the power button for 10 seconds to reset it."
+    "You are CARE, a warm and calm customer support assistant for an audio electronics store. "
+    "Always reply in English, in the first person, starting with the answer itself.\n"
+    "Rules:\n"
+    "- Use only the provided context. Never invent steps, features, numbers or brands.\n"
+    "- If the context does not mention the topic at all, say: I don't have that detail.\n"
+    "- If the context says something is absent, that is an answer. Give it.\n"
+    "- Answer only what was asked, in at most two short sentences, or at most three short steps.\n"
+    "- Always use the product's full name exactly as written in the context, brand included.\n"
+    "- If the customer sounds upset, start with one short caring sorry, then give only the single most useful fix, and offer to help with the next step."
 )
 SYSTEM_PROMPT = CARE_PERSONA
+
+FEWSHOT = [
+    {"role": "user", "content": "Context:\n[Acme X1 - FAQ]\nThe Acme X1 has Bluetooth 5.0 and no aux input.\n\nCustomer question: does the Acme X1 have an aux port"},
+    {"role": "assistant", "content": "No, the Acme X1 has no aux input. Connect it over Bluetooth."},
+    {"role": "user", "content": "Context:\n[Acme X1 - FAQ]\nThe Acme X1 has Bluetooth 5.0 and no aux input.\n\nCustomer question: does the Acme X1 have NFC"},
+    {"role": "assistant", "content": "I don't have that detail about NFC for the Acme X1."},
+    {"role": "user", "content": "Context:\n[Acme X1 - FAQ]\nThe Acme X1 is rated IP67: submersion up to 1 metre for 30 minutes.\n\nCustomer question: can I use the Acme X1 underwater for 3 hours"},
+    {"role": "assistant", "content": "Not for 3 hours. It is rated IP67, which covers up to 1 metre for 30 minutes."},
+    {"role": "user", "content": "Context:\n[Acme X1 - Pairing]\nTake the Acme X1 out of its case. It flashes blue. Turn on Bluetooth on your phone and select Acme X1.\n\nCustomer question: how do I pair it"},
+    {"role": "assistant", "content": "Take the Acme X1 out of its case, turn on Bluetooth on your phone, then select Acme X1 once it flashes blue."},
+    {"role": "user", "content": "Context:\n[Acme X1 - Troubleshooting]\nHold the power button for 10 seconds to reset the Acme X1.\n\nCustomer question: this is useless, it keeps freezing"},
+    {"role": "assistant", "content": "I'm really sorry, that sounds frustrating. Hold the power button for 10 seconds to reset the Acme X1, and tell me if it still freezes."},
+]
 NO_ANSWER_REPLY = (
     "I'm sorry, I don't have information on that yet. I can help with your products, "
     "Bluetooth and charging problems, warranty questions, or placing an order, "
@@ -114,6 +103,15 @@ _GREETING = re.compile(
     re.I,
 )
 
+
+def clean_reply(text: str) -> str:
+    """Drops a contradictory 'I don't have that detail.' opener when an answer follows."""
+    t = (text or "").strip()
+    t = re.sub(r"^(?:Sure|Certainly|Of course|Absolutely)[,!.]?\s+(?:here(?:'s| is)[^:.\n]*[:.]\s*)?", "", t, flags=re.I).strip()
+    m = re.match(r"^I don't have that detail\.\s+(.{20,})$", t, re.S)
+    if m and not re.search(r"\b(not mention|only mentions?|only mention)\b", m.group(1), re.I):
+        return m.group(1).strip()
+    return t
 
 def is_greeting(text: str) -> bool:
     return bool(_GREETING.match(text or ""))
@@ -160,12 +158,14 @@ def handle_support(
         output = llm.create_chat_completion(
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
+                *FEWSHOT,
                 {"role": "user", "content": prompt_with_context},
             ],
             max_tokens=200,
+            **SAMPLING,
         )
         print(f"[TIMING] Support | Retrieval: {retrieval_time:.3f}s | Generation: {time.time() - gen_start:.3f}s")
-        reply = output["choices"][0]["message"]["content"]
+        reply = clean_reply(output["choices"][0]["message"]["content"])
 
     if escalate:
         reply += "\n\n(This has been flagged for priority review by our support team.)"
@@ -252,9 +252,11 @@ def chat_stream(
         stream = llm.create_chat_completion(
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
+                *FEWSHOT,
                 {"role": "user", "content": prompt_with_context},
             ],
             max_tokens=200,
+            **SAMPLING,
             stream=True,
         )
         for chunk in stream:

@@ -53,6 +53,7 @@ VOICE_SYSTEM_PROMPT = (
     "provided context. If the context does not cover the question, say so briefly."
 )
 VOICE_MAX_TOKENS = 120
+VOICE_SAMPLING = {"temperature": 0.2, "top_p": 0.9, "repeat_penalty": 1.1}
 MAX_SPOKEN_SENTENCES = 2
 NOT_HEARD_REPLY = "Sorry, I didn't catch that. Could you say it again?"
 ESCALATION_NOTE = "I've flagged this for priority review by our support team."
@@ -105,6 +106,7 @@ def _llm_tokens(prompt: str):
             {"role": "user", "content": prompt},
         ],
         max_tokens=VOICE_MAX_TOKENS,
+        **VOICE_SAMPLING,
         stream=True,
     )
     spoken = ""

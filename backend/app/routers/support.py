@@ -164,25 +164,6 @@ def is_thanks(text: str) -> bool:
     return 0 < len(t.split()) <= 7 and bool(_THANKS.search(t)) and not _ASKING.search(t)
 
 
-THANKS_REPLY = (
-    "You're welcome! I'm glad that's sorted. "
-    "Is there anything else I can help you with?"
-)
-_THANKS = re.compile(
-    r"\b(?:thanks?|thank\s+you|thx|cheers|appreciate|fixed|worked|works\s+now|solved|sorted)\b",
-    re.I,
-)
-_ASKING = re.compile(
-    r"\?|\b(?:can|could|how|what|why|when|where|which|do|does|also|please|tell|show)\b",
-    re.I,
-)
-
-
-def is_thanks(text: str) -> bool:
-    t = (text or "").strip()
-    return 0 < len(t.split()) <= 7 and bool(_THANKS.search(t)) and not _ASKING.search(t)
-
-
 def is_greeting(text: str) -> bool:
     return bool(_GREETING.match(text or ""))
 
@@ -205,9 +186,6 @@ def handle_support(
 ) -> str:
     if is_greeting(user_message):
         return greeting_for(user)
-
-    if is_thanks(user_message):
-        return THANKS_REPLY
 
     if is_thanks(user_message):
         return THANKS_REPLY
@@ -289,12 +267,6 @@ def chat_stream(
             yield f"data: {json.dumps({'token': greeting_for(user)})}\n\n"
             yield f"data: {json.dumps({'done': True})}\n\n"
         return StreamingResponse(greeting_generator(), media_type="text/event-stream")
-
-    if is_thanks(request.message):
-        def thanks_generator():
-            yield f"data: {json.dumps({'token': THANKS_REPLY})}\n\n"
-            yield f"data: {json.dumps({'done': True})}\n\n"
-        return StreamingResponse(thanks_generator(), media_type="text/event-stream")
 
     if is_thanks(request.message):
         def thanks_generator():

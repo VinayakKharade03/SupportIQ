@@ -18,3 +18,5 @@ backend/models/
 
 # Test/temp audio files
 *.wav
+
+backend/behaviour_out*.txt

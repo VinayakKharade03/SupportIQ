@@ -5,6 +5,7 @@ import uuid
 import json
 import re
 
+import random
 from fastapi import APIRouter, Depends, UploadFile, File
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -113,6 +114,75 @@ def clean_reply(text: str) -> str:
         return m.group(1).strip()
     return t
 
+CARE_OPENERS = [
+    "I'm sorry about that, let's sort it out. ",
+    "I understand how frustrating that is, and I'm here to help. ",
+    "I'm really sorry about this. Let's fix it together. ",
+]
+_UPSET = re.compile(
+    r"frustrat|useless|annoy|angry|terrible|worst|hate|ridiculous|waste|fed up"
+    r"|disappoint|unacceptable|not working|doesn'?t work|won'?t|stopped|broken|keeps",
+    re.I,
+)
+_SORRY = re.compile(
+    r"^\s*(?:(?:i'?m|i\s+am)\s+(?:really\s+|so\s+|very\s+)?sorry|sorry\b|i\s+apologi[sz]e)",
+    re.I,
+)
+
+
+def care_opener(message: str, sentiment: str, category: str) -> str:
+    """Short caring opener for upset customers, chosen in code, not by the model."""
+    if sentiment != "negative" or category == "resolved":
+        return ""
+    if not _UPSET.search(message or ""):
+        return ""
+    return random.choice(CARE_OPENERS)
+
+
+def with_opener(opener: str, reply: str) -> str:
+    if not opener or _SORRY.match(reply or ""):
+        return reply
+    return opener + reply
+
+
+THANKS_REPLY = (
+    "You're welcome! I'm glad that's sorted. "
+    "Is there anything else I can help you with?"
+)
+_THANKS = re.compile(
+    r"\b(?:thanks?|thank\s+you|thx|cheers|appreciate|fixed|worked|works\s+now|solved|sorted)\b",
+    re.I,
+)
+_ASKING = re.compile(
+    r"\?|\b(?:can|could|how|what|why|when|where|which|do|does|also|please|tell|show)\b",
+    re.I,
+)
+
+
+def is_thanks(text: str) -> bool:
+    t = (text or "").strip()
+    return 0 < len(t.split()) <= 7 and bool(_THANKS.search(t)) and not _ASKING.search(t)
+
+
+THANKS_REPLY = (
+    "You're welcome! I'm glad that's sorted. "
+    "Is there anything else I can help you with?"
+)
+_THANKS = re.compile(
+    r"\b(?:thanks?|thank\s+you|thx|cheers|appreciate|fixed|worked|works\s+now|solved|sorted)\b",
+    re.I,
+)
+_ASKING = re.compile(
+    r"\?|\b(?:can|could|how|what|why|when|where|which|do|does|also|please|tell|show)\b",
+    re.I,
+)
+
+
+def is_thanks(text: str) -> bool:
+    t = (text or "").strip()
+    return 0 < len(t.split()) <= 7 and bool(_THANKS.search(t)) and not _ASKING.search(t)
+
+
 def is_greeting(text: str) -> bool:
     return bool(_GREETING.match(text or ""))
 
@@ -135,6 +205,12 @@ def handle_support(
 ) -> str:
     if is_greeting(user_message):
         return greeting_for(user)
+
+    if is_thanks(user_message):
+        return THANKS_REPLY
+
+    if is_thanks(user_message):
+        return THANKS_REPLY
 
     sentiment, category = classify(user_message)
     escalate = should_escalate(sentiment, category)
@@ -166,6 +242,7 @@ def handle_support(
         )
         print(f"[TIMING] Support | Retrieval: {retrieval_time:.3f}s | Generation: {time.time() - gen_start:.3f}s")
         reply = clean_reply(output["choices"][0]["message"]["content"])
+        reply = with_opener(care_opener(user_message, sentiment, category), reply)
 
     if escalate:
         reply += "\n\n(This has been flagged for priority review by our support team.)"
@@ -213,6 +290,18 @@ def chat_stream(
             yield f"data: {json.dumps({'done': True})}\n\n"
         return StreamingResponse(greeting_generator(), media_type="text/event-stream")
 
+    if is_thanks(request.message):
+        def thanks_generator():
+            yield f"data: {json.dumps({'token': THANKS_REPLY})}\n\n"
+            yield f"data: {json.dumps({'done': True})}\n\n"
+        return StreamingResponse(thanks_generator(), media_type="text/event-stream")
+
+    if is_thanks(request.message):
+        def thanks_generator():
+            yield f"data: {json.dumps({'token': THANKS_REPLY})}\n\n"
+            yield f"data: {json.dumps({'done': True})}\n\n"
+        return StreamingResponse(thanks_generator(), media_type="text/event-stream")
+
     sentiment, category = classify(request.message)
     escalate = should_escalate(sentiment, category)
     print(f"[CLASSIFY] sentiment={sentiment} category={category} escalate={escalate}")
@@ -259,6 +348,8 @@ def chat_stream(
             **SAMPLING,
             stream=True,
         )
+        opener_pending = care_opener(request.message, sentiment, category) or None
+        held = ""
         for chunk in stream:
             delta = chunk["choices"][0]["delta"]
             token = delta.get("content", "")
@@ -266,7 +357,20 @@ def chat_stream(
                 if first_token_time is None:
                     first_token_time = time.time() - gen_start
                     print(f"[TIMING] First token: {first_token_time:.3f}s")
+                if opener_pending is not None:
+                    held += token
+                    if len(held) < 24:
+                        continue
+                    token = held
+                    held = ""
+                    if opener_pending and not _SORRY.match(token):
+                        yield f"data: {json.dumps({'token': opener_pending})}\n\n"
+                    opener_pending = None
                 yield f"data: {json.dumps({'token': token})}\n\n"
+        if held:
+            if opener_pending and not _SORRY.match(held):
+                yield f"data: {json.dumps({'token': opener_pending})}\n\n"
+            yield f"data: {json.dumps({'token': held})}\n\n"
         print(f"[TIMING] Full generation: {time.time() - gen_start:.3f}s")
         if escalate_event:
             yield escalate_event
